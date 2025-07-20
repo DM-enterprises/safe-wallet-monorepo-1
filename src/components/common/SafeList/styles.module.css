@@ -1,0 +1,33 @@
+.container {
+  max-width: 695px;
+  margin: auto;
+  padding-top: var(--space-5);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: var(--space-2);
+}
+
+.sidebarHeader {
+  border-bottom: 1px solid var(--color-border-light);
+  padding: 16px 26px;
+  margin: 0;
+}
+
+.sidebarTitle {
+  font-size: 20px;
+}
+
+@media (max-width: 599.95px) {
+  .header {
+    display: block;
+  }
+
+  .createAccountButton {
+    width: 100%;
+    margin-top: 16px;
+  }
+}

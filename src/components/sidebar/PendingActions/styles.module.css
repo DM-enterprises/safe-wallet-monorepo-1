@@ -1,0 +1,21 @@
+.pendingButton {
+  margin-top: 12px;
+  margin-right: 8px;
+}
+
+.pendingButton img {
+  height: 24px;
+  width: 20px;
+}
+
+.missingSignatures {
+  background-color: var(--color-warning-background);
+}
+
+.queued {
+  background-color: var(--color-background-main);
+}
+
+[data-theme='dark'] .queued {
+  background-color: var(--color-secondary-dark);
+}
