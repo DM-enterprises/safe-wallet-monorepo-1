@@ -1,0 +1,13 @@
+{
+  "headers": [
+    {
+      "source": "**/*",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; connect-src 'self' *; script-src 'self' https://www.google-analytics.com https://ssl.google-analytics.com 'unsafe-inline' https://*.getbeamer.com https://www.googletagmanager.com https://*.ingest.sentry.io https://sentry.io unsafe-eval; frame-src http: https:; style-src 'self' 'unsafe-inline' https://*.getbeamer.com https://*.googleapis.com; font-src 'self' data:; worker-src 'self' blob:;img-src * data:;"
+        }
+      ]
+    }
+  ]
+}
