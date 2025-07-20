@@ -1,0 +1,236 @@
+import type { ConnectedWallet } from '@/hooks/wallets/useOnboard'
+import { getModuleInstance, KnownContracts } from '@gnosis.pm/zodiac'
+import type { SafeTransaction } from '@safe-global/safe-core-sdk-types'
+import type { TransactionAddedEvent } from '@gnosis.pm/zodiac/dist/cjs/types/Delay'
+import type { Eip1193Provider, TransactionResponse } from 'ethers'
+
+import { createWeb3 } from '@/hooks/wallets/web3'
+import { didReprice, didRevert } from '@/utils/ethers-utils'
+import { recoveryDispatch, RecoveryEvent, RecoveryTxType } from './recoveryEvents'
+import { asError } from '@/services/exceptions/utils'
+import { isSmartContractWallet } from '@/utils/wallets'
+import { UncheckedJsonRpcSigner } from '@/utils/providers/UncheckedJsonRpcSigner'
+
+async function getDelayModifierContract({
+  provider,
+  wallet,
+  delayModifierAddress,
+}: {
+  provider: Eip1193Provider
+  wallet: ConnectedWallet
+  delayModifierAddress: string
+}) {
+  const browserProvider = createWeb3(provider)
+  const isSmartContract = await isSmartContractWallet(wallet.chainId, wallet.address)
+
+  const originalSigner = await browserProvider.getSigner()
+  // Use unchecked signer for smart contract wallets as transactions do not necessarily immediately execute
+  const signer = isSmartContract
+    ? new UncheckedJsonRpcSigner(browserProvider, await originalSigner.getAddress())
+    : originalSigner
+  const delayModifier = getModuleInstance(KnownContracts.DELAY, delayModifierAddress, signer).connect(signer)
+
+  return {
+    isUnchecked: isSmartContract,
+    delayModifier,
+  }
+}
+
+function waitForRecoveryTx({
+  tx,
+  ...payload
+}: {
+  moduleAddress: string
+  recoveryTxHash: string
+  tx: TransactionResponse
+  txType: RecoveryTxType
+}) {
+  const event = {
+    ...payload,
+    txHash: tx.hash,
+  }
+
+  recoveryDispatch(RecoveryEvent.PROCESSING, event)
+  tx.wait()
+    .then((receipt) => {
+      if (didRevert(receipt!)) {
+        recoveryDispatch(RecoveryEvent.REVERTED, {
+          ...event,
+          error: new Error('Transaction reverted by EVM'),
+        })
+      } else {
+        recoveryDispatch(RecoveryEvent.PROCESSED, event)
+      }
+    })
+    .catch((error) => {
+      if (didReprice(error)) {
+        recoveryDispatch(RecoveryEvent.PROCESSED, event)
+      } else {
+        recoveryDispatch(RecoveryEvent.FAILED, {
+          ...event,
+          error: asError(error),
+        })
+      }
+    })
+}
+
+export async function dispatchRecoveryProposal({
+  provider,
+  wallet,
+  safeTx,
+  delayModifierAddress,
+}: {
+  provider: Eip1193Provider
+  wallet: ConnectedWallet
+  safeTx: SafeTransaction
+  delayModifierAddress: string
+}) {
+  const { delayModifier, isUnchecked } = await getDelayModifierContract({
+    provider,
+    wallet,
+    delayModifierAddress,
+  })
+
+  const txType = RecoveryTxType.PROPOSAL
+  let recoveryTxHash: string | undefined
+
+  try {
+    // Get recovery tx hash as a form of ID for FAILED event in event bus
+    recoveryTxHash = await delayModifier.getTransactionHash(
+      safeTx.data.to,
+      safeTx.data.value,
+      safeTx.data.data,
+      safeTx.data.operation,
+    )
+
+    const tx = await delayModifier.execTransactionFromModule(
+      safeTx.data.to,
+      safeTx.data.value,
+      safeTx.data.data,
+      safeTx.data.operation,
+    )
+
+    if (isUnchecked) {
+      recoveryDispatch(RecoveryEvent.PROCESSING_BY_SMART_CONTRACT_WALLET, {
+        moduleAddress: delayModifierAddress,
+        recoveryTxHash,
+        txType,
+        txHash: tx.hash,
+      })
+    } else {
+      waitForRecoveryTx({
+        moduleAddress: delayModifierAddress,
+        recoveryTxHash,
+        txType,
+        tx,
+      })
+    }
+  } catch (error) {
+    recoveryDispatch(RecoveryEvent.FAILED, {
+      moduleAddress: delayModifierAddress,
+      recoveryTxHash,
+      txType,
+      error: asError(error),
+    })
+
+    throw error
+  }
+}
+
+export async function dispatchRecoveryExecution({
+  provider,
+  wallet,
+  args,
+  delayModifierAddress,
+}: {
+  provider: Eip1193Provider
+  wallet: ConnectedWallet
+  args: TransactionAddedEvent.Log['args']
+  delayModifierAddress: string
+}) {
+  const { delayModifier, isUnchecked } = await getDelayModifierContract({
+    provider,
+    wallet,
+    delayModifierAddress,
+  })
+
+  const txType = RecoveryTxType.EXECUTION
+
+  try {
+    const tx = await delayModifier.executeNextTx(args.to, args.value, args.data, args.operation)
+
+    if (isUnchecked) {
+      recoveryDispatch(RecoveryEvent.PROCESSING_BY_SMART_CONTRACT_WALLET, {
+        moduleAddress: delayModifierAddress,
+        recoveryTxHash: args.txHash,
+        txType,
+        txHash: tx.hash,
+      })
+    } else {
+      waitForRecoveryTx({
+        moduleAddress: delayModifierAddress,
+        recoveryTxHash: args.txHash,
+        txType,
+        tx,
+      })
+    }
+  } catch (error) {
+    recoveryDispatch(RecoveryEvent.FAILED, {
+      moduleAddress: delayModifierAddress,
+      recoveryTxHash: args.txHash,
+      txType,
+      error: asError(error),
+    })
+
+    throw error
+  }
+}
+
+export async function dispatchRecoverySkipExpired({
+  provider,
+  wallet,
+  delayModifierAddress,
+  recoveryTxHash,
+}: {
+  provider: Eip1193Provider
+  wallet: ConnectedWallet
+  delayModifierAddress: string
+  recoveryTxHash: string
+}) {
+  const { delayModifier, isUnchecked } = await getDelayModifierContract({
+    provider,
+    wallet,
+    delayModifierAddress,
+  })
+
+  const txType = RecoveryTxType.SKIP_EXPIRED
+
+  try {
+    const tx = await delayModifier.skipExpired()
+
+    if (isUnchecked) {
+      recoveryDispatch(RecoveryEvent.PROCESSING_BY_SMART_CONTRACT_WALLET, {
+        moduleAddress: delayModifierAddress,
+        recoveryTxHash,
+        txType,
+        txHash: tx.hash,
+      })
+    } else {
+      waitForRecoveryTx({
+        moduleAddress: delayModifierAddress,
+        recoveryTxHash,
+        txType,
+        tx,
+      })
+    }
+  } catch (error) {
+    recoveryDispatch(RecoveryEvent.FAILED, {
+      moduleAddress: delayModifierAddress,
+      recoveryTxHash,
+      txType,
+      error: asError(error),
+    })
+
+    throw error
+  }
+}
