@@ -1,0 +1,135 @@
+.container {
+  container-type: inline-size;
+  container-name: my-accounts-container;
+  display: flex;
+  justify-content: center;
+}
+
+.myAccounts {
+  width: 100%;
+  max-width: 663px;
+  padding: var(--space-2);
+}
+
+.safeList {
+  margin-bottom: var(--space-1);
+}
+
+.safeList :last-child {
+  margin-bottom: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  padding: var(--space-3) 0;
+  gap: var(--space-2);
+}
+
+.title {
+  flex: 1;
+}
+
+.listItem {
+  border-radius: var(--space-1);
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: var(--space-1);
+  background-color: var(--color-background-paper);
+}
+
+.listItem > :first-child {
+  flex: 1;
+  width: 90%;
+}
+
+.currentListItem {
+  border: 1px solid var(--color-secondary-light);
+  border-left-width: 6px;
+  background-color: var(--color-secondary-background) !important;
+}
+
+.safeLink {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-12) var(--space-2) var(--space-2);
+}
+
+.safeAddress {
+  white-space: nowrap;
+  padding-left: var(--space-2);
+  overflow: hidden;
+  margin-right: 10px;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.card {
+  margin: auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  background-color: transparent;
+}
+
+.card :global .MuiCardHeader-root,
+.card :global .MuiCardContent-root {
+  padding: 0;
+}
+
+.cardHeader {
+  text-align: center;
+}
+
+.infoIcon {
+  vertical-align: middle;
+  width: 1rem;
+  height: 1rem;
+  margin: 4px;
+  color: var(--color-text-secondary);
+}
+
+.visibilityIcon {
+  font-size: 16px !important;
+  color: var(--color-border-main) !important;
+}
+
+.readOnlyChip {
+  border-radius: 4px;
+  color: var(--color-primary-light);
+  border-color: var(--color-border-light);
+  font-size: 14px;
+  padding-left: var(--space-1);
+  padding-right: var(--space-1);
+}
+
+@container my-accounts-container (max-width: 500px) {
+  .myAccounts {
+    padding: 0;
+  }
+
+  .header {
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-border-light);
+    gap: var(--space-1);
+  }
+
+  .safeList {
+    padding: var(--space-2);
+  }
+
+  .listItem {
+    border: 1px solid var(--color-border-light);
+  }
+
+  .title {
+    font-size: 22px;
+  }
+
+  .header :global .MuiButtonBase-root {
+    padding-left: var(--space-1);
+    padding-right: var(--space-1);
+  }
+}
